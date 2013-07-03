@@ -27,28 +27,33 @@
 ## fieldNameLens.  TODO: The cols in data have to be named and of equal
 ## length.  indFields is a character vector with the names of fields that we
 ## want indexed.  By default only _id will be indexed.
-.makeSimpleTable <- function(data, table, con, fieldNameLens=25,
-                             indFields="_id"){
-  message(paste("Populating",table,"table:"))
-  ## For temp table, lets do it like this:
-  if(dim(data)[1] == 0){
-    ## if we don't have anything to put into the table, then we don't even
-    ## want to make a table.
-    warning(paste("no values found for table ",table,
-                  " in this data chunk.", sep=""))
-    return()
-  }else{
-    dbWriteTable(con, "temp", data, row.names=FALSE)
-    ## Then we have to create our real table.
-    tableFieldLines <- paste(paste(names(data)[-1]," VARCHAR(",
-                                 fieldNameLens,") NOT NULL,    -- data"),
-                           collapse="\n       ")
+.makeEmptySimpleTable <- function(con, table, tableFieldLines){
     sql<- paste("    CREATE TABLE IF NOT EXISTS",table," (
       _id INTEGER NOT NULL,                         -- REFERENCES genes
       ",tableFieldLines,"
       FOREIGN KEY (_id) REFERENCES genes (_id)
     );") 
     sqliteQuickSQL(con, sql)
+}
+.makeSimpleTable <- function(data, table, con, fieldNameLens=25,
+                             indFields="_id"){
+  message(paste("Populating",table,"table:"))
+  tableFieldLines <- paste(paste(names(data)[-1]," VARCHAR(",
+                                 fieldNameLens,") NOT NULL,    -- data"),
+                           collapse="\n       ")
+  ## For temp table, lets do it like this:
+  if(dim(data)[1] == 0){
+    ## if we don't have anything to put into the table, then we don't even
+    ## want to make a table.
+    warning(paste("no values found for table ",table,
+                  " in this data chunk.", sep=""))
+    ## Create our real table.
+    .makeEmptySimpleTable(con, table, tableFieldLines)
+    return()
+  }else{
+    dbWriteTable(con, "temp", data, row.names=FALSE)
+    ## Create our real table.
+    .makeEmptySimpleTable(con, table, tableFieldLines)
     selFieldLines <- paste(paste("t.",names(data)[-1],sep=""),collapse=",")
     sql<- paste("
     INSERT INTO ",table,"
@@ -152,12 +157,13 @@
 }
 
 .tryDL <- function(url, tmp){
-  for(i in 1:4){
+    times = 4 ## try this many times to DL
+  for(i in 1:times){ 
     ## tryResult <- try( download.file(url, tmp, quiet=TRUE) , silent=TRUE)     
      tryResult <- try( .downloadAndSaveToTemp(url, tmp) , silent=TRUE)     
-     if(is(tryResult,"try-error") && i < 4){
+     if(is(tryResult,"try-error") && i < times){
          Sys.sleep(20)
-     }else if(is(tryResult,"try-error") && i >= 4){
+     }else if(is(tryResult,"try-error") && i >= times){
          msg = paste("After 3 attempts, AnnotationDbi is still not able",
                      "to access the following URL:", url,
                      "You might want to try again later.",
@@ -167,51 +173,69 @@
   }
 }
 
-.downloadData <- function (file, tax_id) {
+.downloadData <- function (file, tax_id, NCBIFilesDir=NULL) {
   colClasses1 <- c("character",rep("NULL", times= length(unlist(file))-1))
   colClasses2 <- c(rep("character", times= length(unlist(file))))
   ## names(file) is something like: "gene2go.gz"
   message(paste("Getting data for ",names(file),sep=""))
   
+  ## Where to DL from
   url <- paste("ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/",names(file), sep="")
-  tmp <- tempfile()
-  ##download.file(url, tmp, quiet=TRUE)
-  .tryDL(url, tmp)
   
-## TEMPORARILY, lets work from some local files.
-  ## tmp <- paste("/home/mcarlson/proj/mcarlson/",
-  ##              "2011-May24/",names(file), sep="")
-## end of TEMP stuff
-  
-  if("tax_id" %in% unlist(file)){ ## when there is a tax_id we want to subset
-    tax_ids <- unlist(read.delim(tmp,header=FALSE,sep="\t",skip=1,
-                                 stringsAsFactors=FALSE,
-                                 colClasses = colClasses1))
-    
-    ind <- grep(paste("^",tax_id,"$",sep=""), tax_ids, perl=TRUE)
-    
-    if(length(ind) == 0){## ie there are no matching tax_ids...
-      vals <- data.frame(t(1:length(unlist(file))),stringsAsFactors=FALSE)
-      colnames(vals) <- unlist(file)
-      vals <- vals[FALSE,]
-    }else{
-      vals <- read.delim(tmp, header=FALSE, sep="\t", skip=1+min(ind),
-                         nrows= max(ind) - min(ind) +1,
-                         stringsAsFactors=FALSE,
-                         colClasses = colClasses2)
-    } 
+  if(is.null(NCBIFilesDir)){
+      tmp <- tempfile() 
+      ##download.file(url, tmp, quiet=TRUE)
+      .tryDL(url, tmp)
   }else{
-    vals <- read.delim(tmp, header=FALSE, sep="\t", skip=1,
-                       stringsAsFactors=FALSE,
-                       colClasses = colClasses2)
+      tmp <- paste(NCBIFilesDir, names(file), sep=.Platform$file.sep)
+       if(!file.exists(tmp)){
+           .tryDL(url, tmp)
+       }## otherwise we already have the file saved
   }
-##   
-  ## The following will just keep unwanted data from our temp DB tables.
-  ## if there is a tax_id,
-  ## then only return the piece that matches the organism in question
-  colnames(vals) <- unlist(file)
-  if(!is.null(vals[["tax_id"]])){
-    vals <- vals[vals[["tax_id"]]==tax_id,]
+  ## TODO: this check could be more robust...
+  header <- unlist(strsplit(readLines(tmp, n=1),"\t"))
+  if(all(unlist(file) %in% header)){ ## then we have been here before.
+      message("reading from a pre-processed file")
+      vals <- read.delim(tmp, header=TRUE, sep="\t", quote="",
+                         stringsAsFactors=FALSE)
+  }else{
+      message("discarding data from other organisms")
+      if("tax_id" %in% unlist(file)){ ## when there is a tax_id need to subset
+          tax_ids <- unlist(read.delim(tmp,header=FALSE,sep="\t",skip=1,
+                                       stringsAsFactors=FALSE, quote="",
+                                       colClasses = colClasses1)[,1])
+          
+          ind <- grep(paste("^",tax_id,"$",sep=""), tax_ids, perl=TRUE)
+          
+          if(length(ind) == 0){## ie there are no matching tax_ids...
+              vals <- data.frame(t(1:length(unlist(file))),
+                                 stringsAsFactors=FALSE)
+              colnames(vals) <- unlist(file)
+              vals <- vals[FALSE,]
+          }else{
+              vals <- read.delim(tmp, header=FALSE, sep="\t", skip=1+min(ind),
+                                 nrows= max(ind) - min(ind) +1,
+                                 stringsAsFactors=FALSE, quote="",
+                                 colClasses = colClasses2)
+          }
+      }else{
+          vals <- read.delim(tmp, header=FALSE, sep="\t", skip=1,
+                             stringsAsFactors=FALSE, quote="",
+                             colClasses = colClasses2)
+      } 
+      ## The following will just keep unwanted data from our temp DB tables.
+      ## if there is a tax_id,
+      ## then only return the piece that matches the organism in question
+      colnames(vals) <- unlist(file)
+      if(!is.null(vals[["tax_id"]])){
+          vals <- vals[vals[["tax_id"]]==tax_id,]
+      }
+      ## Remove the following save line if you think there are problems
+      ## with the tx_id filtering above.
+      ## save the processed results ONLY
+      if(!is.null(NCBIFilesDir)){
+          write.table(vals, sep="\t", quote=FALSE, row.names=FALSE, file=tmp)
+      }
   }
   vals
 }
@@ -306,7 +330,7 @@
   tmp <- tempfile()
   ##download.file(url, tmp, quiet=TRUE)
   .tryDL(url,tmp)
-  vals <- read.delim(unzip(tmp), header=FALSE, sep="\t",
+  vals <- read.delim(unzip(tmp), header=FALSE, sep="\t", quote="",
                      stringsAsFactors=FALSE)
   ## I will need to so extra stuff here to match up categories etc.
   ## (vals has to look like gene2go would, and I have to join to refseq and to
@@ -439,8 +463,8 @@
 
 ## need code to generate a table for each of the
 ## file below is like: files[1] or files[2]
-.createTEMPNCBIBaseTable <- function (con, file, tax_id) {
-  data <- .downloadData(file, tax_id)
+.createTEMPNCBIBaseTable <- function (con, file, tax_id, NCBIFilesDir=NULL) {
+  data <- .downloadData(file, tax_id, NCBIFilesDir=NCBIFilesDir)
   table <- sub(".gz$","",names(file))
   if(is.null(table)) stop("Unable to infer a table name.")
   cols <- .generateCols(file)
@@ -465,9 +489,9 @@
 
 
 ## loop through and make the tables
-.makeBaseDBFromDLs <- function(files, tax_id, con){
+.makeBaseDBFromDLs <- function(files, tax_id, con, NCBIFilesDir=NULL){
   for(i in seq_len(length(files))){
-    .createTEMPNCBIBaseTable(con, files[i], tax_id)
+    .createTEMPNCBIBaseTable(con, files[i], tax_id, NCBIFilesDir=NCBIFilesDir)
   }
   con
 }
@@ -540,11 +564,12 @@
 ## Generate the database using the helper functions:
 #########################################################################
 
-makeOrgDbFromNCBI <- function(tax_id, genus, species){
+makeOrgDbFromNCBI <- function(tax_id, genus, species, NCBIFilesDir=NULL){
   require(RSQLite)
   require(GO.db)
-  dbName <- .generateOrgDbName(genus,species)
-  con <- dbConnect(SQLite(), paste(dbName,".sqlite",sep=""))
+  dbFileName <- paste(.generateOrgDbName(genus,species),".sqlite",sep="")
+  if(file.exists(dbFileName)){ file.remove(dbFileName) }
+  con <- dbConnect(SQLite(), dbFileName)
   .createMetadataTables(con)  ## just makes the tables
   ## I need a list of files, along with their column names 
   ## (needed for schema definitions later)
@@ -565,16 +590,16 @@ makeOrgDbFromNCBI <- function(tax_id, genus, species){
     "gene_info.gz" = c("tax_id","gene_id","symbol","locus_tag",
         "synonyms","dbXrefs","chromosome","map_location","description",
         "gene_type","nomenclature_symbol","nomenclature_name",
-        "nomenclature_status","other_designations"),
+        "nomenclature_status","other_designations", "modification_date"),
     ##        "mim2gene.gz" = c("mim_id","gene_id","relation_type"),
     ##        "gene_refseq_uniprotkb_collab.gz" = c("refseq_id","uniprot_id"),
     "gene2go.gz" = c("tax_id","gene_id","go_id","evidence",
         "go_qualifier", "go_description","pubmed_id","category")
   )
-  .makeBaseDBFromDLs(files, tax_id, con)
+  .makeBaseDBFromDLs(files, tax_id, con, NCBIFilesDir=NCBIFilesDir)
   
   ## Add metadata:
-  .addMetadata(con, tax_id, genus, species)
+  .addMetadata(con, tax_id, genus, species) 
   ## Add map_metadata:
   .addMapMetadata(con, tax_id, genus, species)
  
@@ -632,10 +657,10 @@ makeOrgDbFromNCBI <- function(tax_id, genus, species){
   ug <- sqliteQuickSQL(con,
     "SELECT distinct g.gene_id, u.unigene_id FROM gene2unigene as u,
      gene_info as g WHERE u.gene_id=g.gene_id")
-  .makeSimpleTable(ug, table="unigene", con)
+  .makeSimpleTable(ug, table="unigene", con) 
   
   ## Make the GO tables:
-  .makeGOTablesFromNCBI(con)
+  .makeGOTablesFromNCBI(con) 
   
   ## Drop all the older tables (which will include the original "gene_info").
   .dropOldTables(con,names(files))  
@@ -687,14 +712,16 @@ makeOrgPackageFromNCBI <- function(version,
                                outputDir = ".",
                                tax_id,
                                genus,
-                               species){
+                               species,
+                               NCBIFilesDir=NULL){
 
   if(outputDir!="." && file.access(outputDir)[[1]]!=0){
     stop("Selected outputDir '", outputDir,"' does not exist.")}
 
   ## 'outputDir' is not passed to makeOrgDbFromNCBI(). Hence the db file
   ## is always created in ".". Maybe that could be revisited.
-  makeOrgDbFromNCBI(tax_id=tax_id, genus=genus, species=species)
+  makeOrgDbFromNCBI(tax_id=tax_id, genus=genus, species=species,
+                    NCBIFilesDir=NCBIFilesDir)
   
   dbName <- .generateOrgDbName(genus,species)
   dbfile <- paste(dbName, ".sqlite", sep="")
