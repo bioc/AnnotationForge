@@ -264,7 +264,7 @@ are specified the return value is a reference to C-level nodes.
 This storage mode allows us to traverse the tree of data in C
 instead of R objects.
 
-<<xml_tree>>=
+<<xml_tree,eval=FALSE>>=
 library(XML)
 uri <- "http://www.uniprot.org/uniprot/?query=P13368+or+Q6GZX4&format=xml"
 xml <- xmlTreeParse(uri, useInternalNodes=TRUE)
@@ -281,7 +281,7 @@ expression.
 Use the \Rfunction{xmlNamespaceDefinitions} function to check
 if the XML has a namespace.
 
-<<xml_namespace>>=
+<<xml_namespace,eval=FALSE>>=
 defs <- xmlNamespaceDefinitions(xml, recurisve=TRUE)
 defs
 @
@@ -293,7 +293,7 @@ declarstions of the form
 We organize the namespaces and will use them directly
 in parsing.
 
-<<xml_namespace_struct>>=
+<<xml_namespace_struct,eval=FALSE>>=
 ns <- structure(sapply(defs, function(x) x$uri), names=names(defs))
 @
 
@@ -301,14 +301,14 @@ ns <- structure(sapply(defs, function(x) x$uri), names=names(defs))
 
 There are two high level 'entry' nodes which represent
 the two id's requested in the original query.
-<<xml_namespace2>>=
+<<xml_namespace2,eval=FALSE>>=
 entry <- getNodeSet(xml, "//ns:entry", "ns")
 xmlSize(entry)
 @
 
 To get an idea of the data structure we first list the
 attributes of the top nodes and extract the names.
-<<xml_xmlAttrs>>=
+<<xml_xmlAttrs,eval=FALSE>>=
 nms <- xpathSApply(xml, "//ns:entry/ns:name", xmlValue, namespaces="ns")
 attrs <- xpathApply(xml, "//ns:entry", xmlAttrs, namespaces="ns")
 names(attrs) <- nms
@@ -316,13 +316,13 @@ attrs
 @
 
 Next, inspect the direct children of each node.
-<<xml_xmlChildren>>=
+<<xml_xmlChildren,eval=FALSE>>=
 fun1 <- function(elt) unique(names(xmlChildren(elt)))
 xpathApply(xml, "//ns:entry", fun1, namespaces="ns")
 @
 
 Query Q6GZX4 has 2 'feature' nodes and query P13368 has 48.
-<<xml_feature_type>>=
+<<xml_feature_type,eval=FALSE>>=
 Q6GZX4 <- "//ns:entry[ns:accession='Q6GZX4']/ns:feature"
 xmlSize(getNodeSet(xml, Q6GZX4, namespaces="ns"))
 
@@ -332,7 +332,7 @@ xmlSize(getNodeSet(xml, P13368, namespaces="ns"))
 
 List all possible values for the 'type' attribute of the
 'feature' nodes.
-<<xml_feature_type2>>=
+<<xml_feature_type2,eval=FALSE>>=
 path <- "//ns:feature"
 unique(xpathSApply(xml, path, xmlGetAttr, "type", namespaces="ns"))
 @
@@ -340,13 +340,13 @@ unique(xpathSApply(xml, path, xmlGetAttr, "type", namespaces="ns"))
 XPath allows the construction of complex queries to pull out
 specific subsets of data. Here we extract the features with 
 `type=sequence conflict' for query P13368.
-<<xml_feature_type_P13368>>=
+<<xml_feature_type_P13368,eval=FALSE>>=
 path <- "//ns:entry[ns:accession='P13368']/ns:feature[@type='sequence conflict']"
 data.frame(t(xpathSApply(xml, path, xmlAttrs, namespaces="ns")))
 @
 
 Put the sequences in an AAStringSet and add the names.
-<<xml_sequence>>=
+<<xml_sequence,eval=FALSE>>=
 library(Biostrings)
 path <- "//ns:entry/ns:sequence"
 seqs <- xpathSApply(xml, path, xmlValue, namespaces="ns")
