@@ -1208,7 +1208,7 @@ splitBy <-
     res <- res[!res$EntrezGene == "" | res$GO == "", ]
     if (nrow(res) == 0)
         return(data.frame(gene_id="", go_id="", evidence="",
-                          stringsAsFactors=FALSE))
+                          stringsAsFactors=FALSE)[FALSE,])
 
     ## split two column data frames at will...
     data <- splitBy(res, splitCol=2)
