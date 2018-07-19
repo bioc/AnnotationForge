@@ -268,7 +268,9 @@ instead of R objects.
 <<xml_tree>>=
 library(XML)
 uri <- "http://www.uniprot.org/uniprot/?query=P13368+or+Q6GZX4&format=xml"
-xml <- xmlTreeParse(uri, useInternalNodes=TRUE)
+fl <- tempfile()
+download.file(uri, fl)
+xml <- xmlTreeParse(fl, useInternalNodes=TRUE)
 @
 
 \paragraph{XML namespace:}
