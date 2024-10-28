@@ -1,3 +1,12 @@
+CHANGES IN VERSION 1.48.0
+-------------------------
+
+BUG FIXES AND MINOR IMPROVEMENTS
+
+    o  Updated `viableIDs.rda` file in `extdata` directory (@lshep)
+    o  Added `rmarkdown` to `Suggests` in `DESCRIPTION` file
+
+
 CHANGES IN VERSION 1.41.0
 -------------------------
 
@@ -80,12 +89,12 @@ MODIFICATIONS
       - use of loadNamespace() rather than require()
       - avoid 1:n iterations
       - formatting, e.g., of SQL and if () {} else {}
- 
-    o remove unused tests/runalltests.Rout.save file in 
+
+    o remove unused tests/runalltests.Rout.save file in
       AnnDbPkg-templates
- 
+
     o use https: rather than http: for NCBI access
- 
+
     o rename R code and man page files consistent with high level functions
 
     o bump OrgDb version for 3.4 release
@@ -103,7 +112,7 @@ CHANGES IN VERSION 1.14.0
 
 NEW FEATURES
 
-    o build 'alias' table in OrgDbs sqlite db for frog, chimp, rhesus and 
+    o build 'alias' table in OrgDbs sqlite db for frog, chimp, rhesus and
       mosquito
 
 MODIFICATIONS
@@ -116,7 +125,7 @@ MODIFICATIONS
       - remove old code and comments
       - update man page
 
-    o add PFAM and PROSITE man pages to NCBICHIP  and NCBIORG package 
+    o add PFAM and PROSITE man pages to NCBICHIP  and NCBIORG package
       templates
 
     o allow passing of directory location in wrapBaseDBPackages()
@@ -127,7 +136,7 @@ MODIFICATIONS
 
     o add DBI to 'Suggests'; load DBI in _dbconn man page
 
-    o load SQLite in vignettes; no longer free from 
+    o load SQLite in vignettes; no longer free from
       AnnotationDbi::dbFileConnect()
 
 
