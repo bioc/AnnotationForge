@@ -6,7 +6,7 @@ Description: Provides code for generating Annotation packages and
 biocViews: Annotation, Infrastructure
 URL: https://bioconductor.org/packages/AnnotationForge
 BugReports: https://github.com/Bioconductor/AnnotationForge/issues
-Version: 1.47.2
+Version: 1.47.3
 License: Artistic-2.0
 Encoding: UTF-8
 Authors@R: c(
@@ -33,3 +33,4 @@ Collate: makeAnnDbPkg.R sqlForge_utils.R sqlForge_baseMapBuilder.R
         makeOrgPackage.R makeChipPackageFromDataFrames.R
         makeOrgPackageFromNCBI.R NCBI_getters.R makeInparanoidDbs.R
         test_AnnotationForge_package.R
+Date: 2024-10-28
